@@ -125,7 +125,9 @@ func (s *Server) Serve(ctx context.Context, l transport.AuthenticatedListener) {
 		s.logger.Debug("context cancelled, wait for control and data servers")
 		cancel()
 		for i := 0; i < 2; i++ {
-			<-serveErrors
+			if err := <-serveErrors; err != nil {
+				s.logger.WithError(err).Debug("server returned after cancel")
+			}
 		}
 		s.logger.Debug("control and data server shut down, returning from Serve")
 	}

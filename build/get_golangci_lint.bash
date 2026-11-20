@@ -6,7 +6,7 @@ set -x
 
 cd "$1"
 
-VERSION=2.8.0
+VERSION=2.15.0
 FILENAME=golangci-lint-"$VERSION"-linux-"$GOHOSTARCH".tar.gz
 
 if [ -e "$FILENAME" ]; then
@@ -20,8 +20,8 @@ stat "$FILENAME"
 
 # Select the correct checksum for the downloaded architecture
 case "$GOHOSTARCH" in
-    arm64) EXPECTED_SHA256="2a58388db8af5ab9330791cea0ebdd4100723cd05ad7185d92febaaee272ec9a" ;;
-    amd64) EXPECTED_SHA256="7048bc6b25c9515ed092c83f9fa8709ca97937ead52d9ff317a143299ee97a50" ;;
+    arm64) EXPECTED_SHA256="b4d8f17068b35ee6060cc2f69a16fb48740d706fbba81661c318649c114a6998" ;;
+    amd64) EXPECTED_SHA256="9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea" ;;
     *)     echo "Unknown architecture: $GOHOSTARCH" >&2; exit 1 ;;
 esac
 

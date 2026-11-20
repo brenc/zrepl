@@ -84,13 +84,13 @@ func (r *CommandHookReport) String() string {
 	sort.Slice(hookEnvKeys, func(i, j int) bool { return string(hookEnvKeys[i]) < string(hookEnvKeys[j]) })
 
 	for _, k := range hookEnvKeys {
-		cmdLine.WriteString(fmt.Sprintf("%s%s='%s'", sep, k, r.Env[k]))
+		fmt.Fprintf(&cmdLine, "%s%s='%s'", sep, k, r.Env[k])
 		sep = " "
 	}
 
-	cmdLine.WriteString(fmt.Sprintf("%s%s", sep, r.Command))
+	fmt.Fprintf(&cmdLine, "%s%s", sep, r.Command)
 	for _, a := range r.Args {
-		cmdLine.WriteString(fmt.Sprintf("%s'%s'", sep, a))
+		fmt.Fprintf(&cmdLine, "%s'%s'", sep, a)
 	}
 
 	var msg string

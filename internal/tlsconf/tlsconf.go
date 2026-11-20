@@ -41,11 +41,10 @@ func NewClientAuthListener(
 	}
 
 	tlsConf := &tls.Config{
-		Certificates:             []tls.Certificate{serverCert},
-		ClientCAs:                ca,
-		ClientAuth:               tls.RequireAndVerifyClientCert,
-		PreferServerCipherSuites: true,
-		KeyLogWriter:             keylogFromEnv(),
+		Certificates: []tls.Certificate{serverCert},
+		ClientCAs:    ca,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		KeyLogWriter: keylogFromEnv(),
 	}
 	return &ClientAuthListener{
 		l,

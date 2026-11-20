@@ -203,7 +203,7 @@ func ChrometraceClientWebsocketHandler(conn *websocket.Conn) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		<-errored
+		<-errored //nolint:errcheck // only signals that the consumer stopped
 		conn.Close()
 	}()
 }
@@ -223,7 +223,7 @@ func init() {
 			errored: errored,
 		}
 		go func() {
-			<-errored
+			<-errored //nolint:errcheck // only signals that the consumer stopped
 			f.Close()
 		}()
 	}

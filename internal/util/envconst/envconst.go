@@ -128,7 +128,7 @@ func Var(varname string, def flag.Value) (d interface{}) {
 	// use def's type to instantiate a new object of that same type
 	// and call flag.Value.Set() on it
 	defType := reflect.TypeOf(def)
-	if defType.Kind() != reflect.Ptr {
+	if defType.Kind() != reflect.Pointer {
 		panic(fmt.Sprintf("envconst var must be a pointer, got %T", def))
 	}
 	defElemType := defType.Elem()
