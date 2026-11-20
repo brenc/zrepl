@@ -72,8 +72,17 @@ different commits; if a build reports a wrong version, delete local tags and
 
 Upstream runs CircleCI (`.circleci/config.yml`): lint, vet, unit tests,
 builds for several OS/arch pairs, and platform tests on Linux against ZFS
-2.3 and 2.4. None of it runs on this fork. Run the checks locally, and the
-platform tests on a ZFS host, before deploying a build.
+2.3 and 2.4. None of it runs on this fork.
+
+Ours, in GitHub Actions (fork-only, `.github/workflows/fork-*`):
+
+- `fork-ci.yml`: vet, lint, unit tests and the race detector on every push
+  to `main`, plus the `fork/` tooling checks.
+- `fork-release.yml`: release artifacts on `v*-brenc.*` tags (see
+  `FORK.md`).
+
+Neither runs the platform tests (GitHub runners have no ZFS). Run them in
+the VMs (see Testing) before tagging a release.
 
 ## Testing
 
@@ -129,6 +138,34 @@ localhost on file-backed pools), for a real ZFS host with root.
 Any change to send, receive, replication planning, pruning or dataset
 filtering needs a unit or platform test for the changed behavior, and a run
 of the platform tests before it ships.
+
+## Fork tooling (Bun)
+
+The TypeScript scripts in `fork/` (`vm.ts`, `soak.ts`, `testpool.ts`, with
+shared parsing in `fork/lib/`) are a self-contained Bun project, kept inside
+`fork/` so none of it can reach an upstream PR. Run these from `fork/`:
+
+```sh
+bun install            # also installs the pre-commit hook
+bun run lint:write     # biome (format + lint), dprint (Markdown), tsc
+bun run test           # bun test: fork/lib/*.test.ts
+```
+
+Run `bun run lint:write` and `bun run test` after changing anything in
+`fork/`. The pre-commit hook (`fork/.husky/pre-commit`) runs `bun run lint`
+on every commit in this repo.
+
+- Biome: single quotes, 2-space indent, sorted keys and imports; schema from
+  `node_modules`. Strict TypeScript with `noUncheckedIndexedAccess`: handle
+  `undefined` (`?? die(...)`) instead of using `!`.
+- Pure logic goes in `fork/lib/` with a `*.test.ts` next to it; the scripts
+  stay thin wrappers around `ssh`, `zfs` and `qemu`.
+- JSDoc every exported function and type.
+- `bunfig.toml` only installs packages at least 3 days old and runs the
+  Socket security scanner on install.
+
+CI (`.github/workflows/fork-ci.yml`) runs the Go checks (vet, lint, unit
+tests, race detector) and this tooling's lint and tests on `main`.
 
 ## Architecture
 
