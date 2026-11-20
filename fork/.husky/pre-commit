@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Installed by `bun install` in fork/ (core.hooksPath=fork/.husky/_). On an
+# upstream PR branch fork/ doesn't exist, so git finds no hook and this
+# never runs there.
+set -euo pipefail
+
+cd fork
+bun run lint
