@@ -21,16 +21,34 @@ jobs:
 
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version-file: go.mod
+          # Latest stable Go with every stdlib security patch. go.mod's
+          # `go 1.26.0` would pin exactly 1.26.0.
+          go-version: stable
+          check-latest: true
 
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
           version-file: .uv-version
 
+      - name: Check tag
+        run: |
+          # The version stamped into binaries and the deb comes from git
+          # describe, which ignores lightweight tags.
+          described=$(git describe --always --dirty)
+          if [ "$described" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::git describe gives $described, not $GITHUB_REF_NAME; push an annotated tag (git tag -a)"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not on main"
+            exit 1
+          fi
+
       - name: Check
         run: |
           make vet
           make test-go
+          go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
 
       - name: Build
         run: |

@@ -22,8 +22,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
-          go-version-file: go.mod
+          # Latest stable Go with every stdlib security patch. go.mod's
+          # `go 1.26.0` would pin exactly 1.26.0.
+          go-version: stable
+          check-latest: true
       - run: make vet
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.10.0 ./...
       - run: make lint
       - run: make test-go
       - run: CGO_ENABLED=1 go test -race ./...
