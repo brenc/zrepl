@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * Throwaway ZFS test bed for zrepl on Linux and FreeBSD.
  *
@@ -36,43 +37,55 @@
  * destroys a pool only if all its vdevs are image files in the work dir.
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, truncateSync, writeFileSync } from "node:fs";
-import { randomBytes } from "node:crypto";
-import { dirname, join } from "node:path";
+import { randomBytes } from 'node:crypto';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  truncateSync,
+  writeFileSync,
+} from 'node:fs';
+import { dirname, join } from 'node:path';
+import { compareChains, parseSnapshotList, type Snapshot } from './lib/zfs.ts';
 
-const WORKDIR = process.env.ZRTEST_DIR ?? "/var/tmp/zrepl-test";
+const WORKDIR = process.env.ZRTEST_DIR ?? '/var/tmp/zrepl-test';
 const PORT = Number(process.env.ZRTEST_PORT ?? 18888);
-const SRC = "zrtest_src";
-const DST = "zrtest_dst";
+const SRC = 'zrtest_src';
+const DST = 'zrtest_dst';
 const POOL_SIZE = 1 << 30; // sparse, so only written blocks use disk
-const CLIENT = "testclient";
-const PUSH_JOB = "push";
-const PUSH_ENC_JOB = "push_enc";
-const SINK_JOB = "sink";
+const CLIENT = 'testclient';
+const PUSH_JOB = 'push';
+const PUSH_ENC_JOB = 'push_enc';
+const SINK_JOB = 'sink';
 
 /**
  * Dataset tree under the source pool and what replication should do with
  * each. `verify` checks the destination against `expect`, so a dataset
  * that zrepl silently skips, or wrongly sends, shows up as a failure.
  */
-const DATASETS: { rel: string; expect: "replicated" | "excluded"; encrypted?: boolean }[] = [
-  { rel: "data", expect: "replicated" },
-  { rel: "data/a", expect: "replicated" },
-  { rel: "data/a/b", expect: "replicated" },
-  { rel: "data/enc", expect: "replicated", encrypted: true },
-  { rel: "data/skip", expect: "excluded" },
-  { rel: "data/skip/child", expect: "excluded" },
+const DATASETS: {
+  rel: string;
+  expect: 'replicated' | 'excluded';
+  encrypted?: boolean;
+}[] = [
+  { expect: 'replicated', rel: 'data' },
+  { expect: 'replicated', rel: 'data/a' },
+  { expect: 'replicated', rel: 'data/a/b' },
+  { encrypted: true, expect: 'replicated', rel: 'data/enc' },
+  { expect: 'excluded', rel: 'data/skip' },
+  { expect: 'excluded', rel: 'data/skip/child' },
 ];
 
 const paths = {
-  config: join(WORKDIR, "zrepl.yml"),
-  encKey: join(WORKDIR, "enc.key"),
-  control: join(WORKDIR, "control"),
-  stdinserver: join(WORKDIR, "stdinserver"),
-  pid: join(WORKDIR, "daemon.pid"),
-  log: join(WORKDIR, "zrepl.log"),
+  config: join(WORKDIR, 'zrepl.yml'),
+  control: join(WORKDIR, 'control'),
+  encKey: join(WORKDIR, 'enc.key'),
   img: (pool: string) => join(WORKDIR, `${pool}.img`),
-  mnt: (pool: string) => join(WORKDIR, "mnt", pool),
+  log: join(WORKDIR, 'zrepl.log'),
+  mnt: (pool: string) => join(WORKDIR, 'mnt', pool),
+  pid: join(WORKDIR, 'daemon.pid'),
+  stdinserver: join(WORKDIR, 'stdinserver'),
 };
 
 /** Where `zfs recv` puts a source dataset: root_fs/<client identity>/<src>. */
@@ -84,37 +97,47 @@ function die(msg: string): never {
 }
 
 /** Run argv without a shell; throws with stderr unless `allowFail`. */
-function run(argv: string[], allowFail = false): { ok: boolean; out: string; err: string } {
-  const p = Bun.spawnSync(argv, { stdout: "pipe", stderr: "pipe" });
-  const res = { ok: p.exitCode === 0, out: p.stdout.toString(), err: p.stderr.toString() };
-  if (!res.ok && !allowFail) die(`${argv.join(" ")}\n${res.err.trim()}`);
+function run(
+  argv: string[],
+  allowFail = false,
+): { ok: boolean; out: string; err: string } {
+  const p = Bun.spawnSync(argv, { stderr: 'pipe', stdout: 'pipe' });
+  const res = {
+    err: p.stderr.toString(),
+    ok: p.exitCode === 0,
+    out: p.stdout.toString(),
+  };
+  if (!res.ok && !allowFail) die(`${argv.join(' ')}\n${res.err.trim()}`);
   return res;
 }
 
 async function runInteractive(argv: string[]): Promise<number> {
-  const p = Bun.spawn(argv, { stdio: ["inherit", "inherit", "inherit"] });
+  const p = Bun.spawn(argv, { stdio: ['inherit', 'inherit', 'inherit'] });
   return await p.exited;
 }
 
 function requireRoot() {
-  if (process.getuid?.() !== 0) die("this command needs root (sudo)");
+  if (process.getuid?.() !== 0) die('this command needs root (sudo)');
 }
 
 function zreplBin(): string {
   if (process.env.ZREPL) return process.env.ZREPL;
-  const arch = { x64: "amd64", arm64: "arm64" }[process.arch as string];
+  const arch = { arm64: 'arm64', x64: 'amd64' }[process.arch as string];
   const repo = dirname(import.meta.dir);
-  const built = join(repo, "artifacts", `zrepl-${process.platform}-${arch}`);
+  const built = join(repo, 'artifacts', `zrepl-${process.platform}-${arch}`);
   if (arch && existsSync(built)) return built;
-  return Bun.which("zrepl") ?? die("no zrepl binary: run make zrepl-bin or set ZREPL");
+  return (
+    Bun.which('zrepl') ??
+    die('no zrepl binary: run make zrepl-bin or set ZREPL')
+  );
 }
 
 function poolExists(pool: string): boolean {
-  return run(["zpool", "list", "-H", "-o", "name", pool], true).ok;
+  return run(['zpool', 'list', '-H', '-o', 'name', pool], true).ok;
 }
 
 function zrepl(...args: string[]): string[] {
-  return [zreplBin(), "--config", paths.config, ...args];
+  return [zreplBin(), '--config', paths.config, ...args];
 }
 
 function renderConfig(): string {
@@ -199,23 +222,26 @@ const COMMON = `    snapshotting:
 `;
 
 function writeConfig() {
-  mkdirSync(WORKDIR, { recursive: true, mode: 0o700 });
-  mkdirSync(paths.stdinserver, { recursive: true, mode: 0o700 });
+  mkdirSync(WORKDIR, { mode: 0o700, recursive: true });
+  mkdirSync(paths.stdinserver, { mode: 0o700, recursive: true });
   writeFileSync(paths.config, renderConfig(), { mode: 0o600 });
-  const check = run(zrepl("configcheck"), true);
+  const check = run(zrepl('configcheck'), true);
   if (!check.ok) die(`configcheck failed:\n${check.err || check.out}`);
   console.log(`config: ${paths.config} (configcheck ok)`);
 }
 
 function writeData(mountpoint: string, bytes: number) {
-  const name = `file-${Date.now()}-${randomBytes(3).toString("hex")}`;
+  const name = `file-${Date.now()}-${randomBytes(3).toString('hex')}`;
   writeFileSync(join(mountpoint, name), randomBytes(bytes));
 }
 
 function mountpointOf(ds: string): string | null {
-  const r = run(["zfs", "get", "-H", "-o", "value", "mounted,mountpoint", ds], true);
-  const [mounted, mp] = r.out.trim().split("\n");
-  return r.ok && mounted === "yes" && mp?.startsWith("/") ? mp : null;
+  const r = run(
+    ['zfs', 'get', '-H', '-o', 'value', 'mounted,mountpoint', ds],
+    true,
+  );
+  const [mounted, mp] = r.out.trim().split('\n');
+  return r.ok && mounted === 'yes' && mp?.startsWith('/') ? mp : null;
 }
 
 function up(configOnly: boolean) {
@@ -223,26 +249,44 @@ function up(configOnly: boolean) {
   requireRoot();
   for (const pool of [SRC, DST])
     if (poolExists(pool)) die(`pool ${pool} already exists; run down first`);
-  if (existsSync(paths.config)) die(`${WORKDIR} already set up; run down first`);
+  if (existsSync(paths.config))
+    die(`${WORKDIR} already set up; run down first`);
 
-  mkdirSync(WORKDIR, { recursive: true, mode: 0o700 });
+  mkdirSync(WORKDIR, { mode: 0o700, recursive: true });
   for (const pool of [SRC, DST]) {
-    writeFileSync(paths.img(pool), "");
+    writeFileSync(paths.img(pool), '');
     truncateSync(paths.img(pool), POOL_SIZE);
     mkdirSync(paths.mnt(pool), { recursive: true });
-    run(["zpool", "create", "-o", "cachefile=none", "-O", "compression=lz4",
-      "-m", paths.mnt(pool), pool, paths.img(pool)]);
+    run([
+      'zpool',
+      'create',
+      '-o',
+      'cachefile=none',
+      '-O',
+      'compression=lz4',
+      '-m',
+      paths.mnt(pool),
+      pool,
+      paths.img(pool),
+    ]);
     console.log(`pool ${pool}: ${paths.img(pool)}`);
   }
 
-  writeFileSync(paths.encKey, randomBytes(16).toString("hex"), { mode: 0o600 });
+  writeFileSync(paths.encKey, randomBytes(16).toString('hex'), { mode: 0o600 });
   for (const d of DATASETS) {
     const enc = d.encrypted
-      ? ["-o", "encryption=on", "-o", "keyformat=passphrase", "-o", `keylocation=file://${paths.encKey}`]
+      ? [
+          '-o',
+          'encryption=on',
+          '-o',
+          'keyformat=passphrase',
+          '-o',
+          `keylocation=file://${paths.encKey}`,
+        ]
       : [];
-    run(["zfs", "create", ...enc, `${SRC}/${d.rel}`]);
+    run(['zfs', 'create', ...enc, `${SRC}/${d.rel}`]);
   }
-  run(["zfs", "create", `${DST}/sink`]);
+  run(['zfs', 'create', `${DST}/sink`]);
   churn(false);
   writeConfig();
 
@@ -261,21 +305,31 @@ Metrics: http://127.0.0.1:${PORT + 1}/metrics`);
  */
 async function daemon(): Promise<number> {
   requireRoot();
-  if (!existsSync(paths.config)) die("not set up; run up first");
-  const p = Bun.spawn(zrepl("daemon"), { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  if (!existsSync(paths.config)) die('not set up; run up first');
+  const p = Bun.spawn(zrepl('daemon'), {
+    stderr: 'pipe',
+    stdin: 'ignore',
+    stdout: 'pipe',
+  });
   writeFileSync(paths.pid, `${p.pid}\n`);
   const log = Bun.file(paths.log).writer();
-  const tee = async (stream: ReadableStream<Uint8Array>, out: NodeJS.WriteStream) => {
+  const tee = async (
+    stream: ReadableStream<Uint8Array>,
+    out: NodeJS.WriteStream,
+  ) => {
     for await (const chunk of stream) {
       out.write(chunk);
       log.write(chunk);
       log.flush();
     }
   };
-  const stop = () => p.kill("SIGTERM");
-  process.on("SIGINT", stop);
-  process.on("SIGTERM", stop);
-  await Promise.all([tee(p.stdout, process.stdout), tee(p.stderr, process.stderr)]);
+  const stop = () => p.kill('SIGTERM');
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  await Promise.all([
+    tee(p.stdout, process.stdout),
+    tee(p.stderr, process.stderr),
+  ]);
   const code = await p.exited;
   await log.end();
   rmSync(paths.pid, { force: true });
@@ -288,19 +342,30 @@ function churn(announce = true) {
     const mp = mountpointOf(`${SRC}/${d.rel}`);
     if (mp) writeData(mp, 1 << 20);
   }
-  if (announce) console.log("wrote 1 MiB into each source dataset");
+  if (announce) console.log('wrote 1 MiB into each source dataset');
 }
 
-function snapshots(ds: string): Map<string, string> {
-  const r = run(["zfs", "list", "-H", "-p", "-t", "snapshot", "-o", "name,guid",
-    "-s", "createtxg", "-d", "1", ds], true);
-  const m = new Map<string, string>();
-  if (!r.ok) return m;
-  for (const line of r.out.trim().split("\n").filter(Boolean)) {
-    const [name, guid] = line.split("\t");
-    m.set(guid!, name!.split("@")[1]!);
-  }
-  return m;
+/** Snapshots of `ds`, oldest first; empty if `ds` doesn't exist. */
+function snapshots(ds: string): Snapshot[] {
+  const r = run(
+    [
+      'zfs',
+      'list',
+      '-H',
+      '-p',
+      '-t',
+      'snapshot',
+      '-o',
+      'name,guid',
+      '-s',
+      'createtxg',
+      '-d',
+      '1',
+      ds,
+    ],
+    true,
+  );
+  return r.ok ? parseSnapshotList(r.out) : [];
 }
 
 function verify() {
@@ -309,22 +374,22 @@ function verify() {
   for (const d of DATASETS) {
     const src = `${SRC}/${d.rel}`;
     const dst = destOf(d.rel);
-    const dstExists = run(["zfs", "list", "-H", "-o", "name", dst], true).ok;
+    const dstExists = run(['zfs', 'list', '-H', '-o', 'name', dst], true).ok;
     let status: string;
-    if (d.expect === "excluded") {
-      status = dstExists ? "FAIL  excluded but present on destination" : "ok    excluded";
+    if (d.expect === 'excluded') {
+      status = dstExists
+        ? 'FAIL  excluded but present on destination'
+        : 'ok    excluded';
     } else if (!dstExists) {
-      status = "FAIL  not on destination";
+      status = 'FAIL  not on destination';
     } else {
-      const srcSnaps = [...snapshots(src)];
-      const dstGuids = snapshots(dst);
-      const lastCommon = srcSnaps.findLastIndex(([guid]) => dstGuids.has(guid));
-      const behind = srcSnaps.length - 1 - lastCommon;
-      if (lastCommon < 0) status = "FAIL  no snapshot in common";
-      else if (behind > 0) status = `lag   ${behind} snapshot(s) behind (${srcSnaps.at(-1)![1]})`;
-      else status = `ok    up to date (${srcSnaps.at(-1)![1]})`;
+      const cmp = compareChains(snapshots(src), snapshots(dst));
+      if (!cmp.common) status = 'FAIL  no snapshot in common';
+      else if (cmp.behind > 0)
+        status = `lag   ${cmp.behind} snapshot(s) behind (${cmp.latest})`;
+      else status = `ok    up to date (${cmp.latest})`;
     }
-    if (status.startsWith("FAIL")) failed++;
+    if (status.startsWith('FAIL')) failed++;
     console.log(`${status.padEnd(60)} ${src}`);
   }
   if (failed) die(`${failed} dataset(s) failed verification`);
@@ -341,9 +406,9 @@ function alive(pid: number): boolean {
 
 async function stopDaemon() {
   if (!existsSync(paths.pid)) return;
-  const pid = Number(readFileSync(paths.pid, "utf8").trim());
+  const pid = Number(readFileSync(paths.pid, 'utf8').trim());
   if (!pid || !alive(pid)) return;
-  process.kill(pid, "SIGTERM");
+  process.kill(pid, 'SIGTERM');
   for (let i = 0; i < 60 && alive(pid); i++) await Bun.sleep(500);
   if (alive(pid)) die(`zrepl daemon ${pid} still running 30s after SIGTERM`);
   console.log(`stopped zrepl daemon ${pid}`);
@@ -354,34 +419,52 @@ async function down() {
   await stopDaemon();
   for (const pool of [SRC, DST]) {
     if (!poolExists(pool)) continue;
-    const vdevs = run(["zpool", "list", "-v", "-H", "-P", pool]).out
-      .split("\n").map((l) => l.trim().split("\t")[0]!).filter((n) => n.startsWith("/"));
+    const vdevs = run(['zpool', 'list', '-v', '-H', '-P', pool])
+      .out.split('\n')
+      .map((l) => l.trim().split('\t')[0] ?? '')
+      .filter((n) => n.startsWith('/'));
     if (!vdevs.length || !vdevs.every((v) => v.startsWith(`${WORKDIR}/`)))
-      die(`pool ${pool} has vdevs outside ${WORKDIR} (${vdevs.join(", ")}); refusing to destroy`);
-    run(["zpool", "destroy", "-f", pool]);
+      die(
+        `pool ${pool} has vdevs outside ${WORKDIR} (${vdevs.join(', ')}); refusing to destroy`,
+      );
+    run(['zpool', 'destroy', '-f', pool]);
     console.log(`destroyed pool ${pool}`);
   }
-  rmSync(WORKDIR, { recursive: true, force: true });
+  rmSync(WORKDIR, { force: true, recursive: true });
   console.log(`removed ${WORKDIR}`);
 }
 
 const [cmd, ...args] = process.argv.slice(2);
 switch (cmd) {
-  case "up": up(args.includes("--config-only")); break;
-  case "daemon": process.exit(await daemon());
-  case "status": {
-    const mode = process.stdout.isTTY ? [] : ["--mode", "raw"];
-    process.exit(await runInteractive(zrepl("status", ...mode)));
-  }
-  case "wakeup":
-    requireRoot();
-    for (const job of [PUSH_JOB, PUSH_ENC_JOB]) run(zrepl("signal", "wakeup", job));
-    console.log("woke push jobs");
+  case 'up':
+    up(args.includes('--config-only'));
     break;
-  case "churn": churn(); break;
-  case "verify": verify(); break;
-  case "down": await down(); break;
+  case 'daemon':
+    process.exitCode = await daemon();
+    break;
+  case 'status': {
+    const mode = process.stdout.isTTY ? [] : ['--mode', 'raw'];
+    process.exitCode = await runInteractive(zrepl('status', ...mode));
+    break;
+  }
+  case 'wakeup':
+    requireRoot();
+    for (const job of [PUSH_JOB, PUSH_ENC_JOB])
+      run(zrepl('signal', 'wakeup', job));
+    console.log('woke push jobs');
+    break;
+  case 'churn':
+    churn();
+    break;
+  case 'verify':
+    verify();
+    break;
+  case 'down':
+    await down();
+    break;
   default:
-    console.error("usage: bun fork/testpool.ts {up [--config-only]|daemon|status|wakeup|churn|verify|down}");
+    console.error(
+      'usage: bun fork/testpool.ts {up [--config-only]|daemon|status|wakeup|churn|verify|down}',
+    );
     process.exit(2);
 }
