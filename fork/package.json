@@ -3,9 +3,9 @@
     "@biomejs/biome": "^2.6.8",
     "@socketsecurity/bun-security-scanner": "^1.1.3",
     "@types/bun": "^1.4.4",
-    "concurrently": "^10.0.6",
     "dprint": "^0.64.1",
     "husky": "^9.1.7",
+    "knip": "^6.45.1",
     "typescript": "^7.0.2"
   },
   "engines": {
@@ -15,13 +15,16 @@
   "name": "zrepl-fork-tools",
   "private": true,
   "scripts": {
-    "dprint:check": "export DPRINT_CACHE_DIR=/tmp/dprint-cache; dprint check --allow-no-files",
-    "dprint:fmt": "export DPRINT_CACHE_DIR=/tmp/dprint-cache; dprint fmt --allow-no-files",
-    "lint": "conc \"biome check\" \"bun run dprint:check\" \"tsc --noEmit\"",
-    "lint:write": "conc \"biome check --write\" \"bun run dprint:fmt\" \"tsc --noEmit\"",
+    "lint": "bun run --parallel lint:biome lint:dprint",
+    "lint:biome": "biome check",
+    "lint:biome:write": "biome check --write",
+    "lint:dprint": "export DPRINT_CACHE_DIR=/tmp/dprint-cache; dprint check --allow-no-files",
+    "lint:dprint:write": "export DPRINT_CACHE_DIR=/tmp/dprint-cache; dprint fmt --allow-no-files",
+    "lint:write": "bun run --parallel lint:biome:write lint:dprint:write",
     "prepare": "cd .. && husky fork/.husky || true",
-    "test": "AGENT=1 bun test",
+    "test": "bun run --parallel lint type-check \"knip --cache\" test:unit",
     "test:cov": "AGENT=1 bun test --coverage",
+    "test:unit": "AGENT=1 bun test",
     "type-check": "tsc --noEmit"
   },
   "type": "module",

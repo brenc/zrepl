@@ -5,4 +5,4 @@
 set -euo pipefail
 
 cd fork
-bun run lint
+bun run test
