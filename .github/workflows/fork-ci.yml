@@ -1,0 +1,41 @@
+# Fork-only CI. Upstream's CircleCI doesn't run on this fork, so this covers
+# the Go checks on our main, plus the Bun tooling in fork/.
+name: fork-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+      - run: make vet
+      - run: make lint
+      - run: make test-go
+      - run: CGO_ENABLED=1 go test -race ./...
+
+  fork-tools:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: fork
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run test
