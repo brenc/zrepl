@@ -96,10 +96,35 @@ Two layers:
   it with `-poolname zreplplatformtest -imagepath /tmp/zreplplatformtest.pool.img
   -mountpoint /tmp/zreplplatformtest.pool`.
 
-`fork/testpool.ts` (Bun, Linux and FreeBSD) adds a whole-daemon soak test:
-file-backed source and destination pools, a push/sink config over localhost
-TCP, and a `verify` command that checks every dataset replicated or stayed
-excluded as intended. Pool commands need root.
+### VM tests (no root needed on the host)
+
+`fork/vm.ts` runs disposable QEMU/KVM VMs (Debian 13 with ZFS 2.3, FreeBSD
+15.1 with ZFS 2.4) as copy-on-write overlays of baked base images; `down`
+discards them. Needs `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`
+and membership in the `kvm` group. One-time setup:
+`bun fork/vm.ts bake debian && bun fork/vm.ts bake freebsd`.
+
+`fork/soak.ts` drives them. Build first: `make zrepl-bin` and
+`make test-platform-bin`, each with `GOOS=linux` and `GOOS=freebsd`
+(`GOARCH=amd64`).
+
+```sh
+bun fork/soak.ts platform debian      # upstream platform tests, ~1.5 min
+bun fork/soak.ts platform freebsd
+bun fork/soak.ts topo up              # 3 VMs shaped like production
+bun fork/soak.ts topo soak 60         # churn + verify for 60 min
+bun fork/soak.ts topo down
+```
+
+The topology copies production: `src` (FreeBSD, like store03: snap job and
+TLS source), `mid` (Debian, like backup01: TLS pull, TCP source) and `off`
+(Debian, like rbackup02: TCP pull). Intervals and grids are scaled to
+minutes. `verify` checks each hop's snapshot chain, exclusions, that
+received datasets never mount, logged errors, and that daemons are up.
+Logs and results land in `/var/tmp/zrepl-vm-<uid>/_soak/`.
+
+`fork/testpool.ts` is the older single-host version (push/sink over
+localhost on file-backed pools), for a real ZFS host with root.
 
 Any change to send, receive, replication planning, pruning or dataset
 filtering needs a unit or platform test for the changed behavior, and a run
