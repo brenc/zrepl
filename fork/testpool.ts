@@ -47,6 +47,7 @@ const DST = "zrtest_dst";
 const POOL_SIZE = 1 << 30; // sparse, so only written blocks use disk
 const CLIENT = "testclient";
 const PUSH_JOB = "push";
+const PUSH_ENC_JOB = "push_enc";
 const SINK_JOB = "sink";
 
 /**
@@ -142,21 +143,39 @@ jobs:
       clients: {
         "127.0.0.1": "${CLIENT}",
       }
+    recv:
+      placeholder:
+        # The receiver never has the key for raw encrypted sends, so
+        # placeholders above them must be unencrypted.
+        encryption: "off"
 
+  # zrepl refuses to mix encrypted and unencrypted datasets in one job's
+  # send policy, so each kind gets its own push job.
   - name: "${PUSH_JOB}"
     type: "push"
-    connect:
-      type: "tcp"
-      address: "127.0.0.1:${PORT}"
+    connect: ${CONNECT}
     filesystems: {
       "${SRC}/data<": true,
       "${SRC}/data/skip<": false,
+      "${SRC}/data/enc<": false,
+    }
+${COMMON}
+  - name: "${PUSH_ENC_JOB}"
+    type: "push"
+    connect: ${CONNECT}
+    filesystems: {
+      "${SRC}/data/enc<": true,
     }
     send:
-      # -w for every dataset: encrypted ones go over still encrypted, and
-      # unencrypted ones are unaffected
-      raw: true
-    snapshotting:
+      encrypted: true
+${COMMON}`;
+}
+
+/** Inline YAML for the push jobs' connect section. */
+const CONNECT = `{ type: "tcp", address: "127.0.0.1:${PORT}" }`;
+
+/** Snapshotting and pruning shared by both push jobs. */
+const COMMON = `    snapshotting:
       type: "periodic"
       interval: "1m"
       prefix: "zrepl_"
@@ -178,7 +197,6 @@ jobs:
           negate: true
           regex: "^zrepl_"
 `;
-}
 
 function writeConfig() {
   mkdirSync(WORKDIR, { recursive: true, mode: 0o700 });
@@ -355,7 +373,11 @@ switch (cmd) {
     const mode = process.stdout.isTTY ? [] : ["--mode", "raw"];
     process.exit(await runInteractive(zrepl("status", ...mode)));
   }
-  case "wakeup": requireRoot(); run(zrepl("signal", "wakeup", PUSH_JOB)); console.log("woke push job"); break;
+  case "wakeup":
+    requireRoot();
+    for (const job of [PUSH_JOB, PUSH_ENC_JOB]) run(zrepl("signal", "wakeup", job));
+    console.log("woke push jobs");
+    break;
   case "churn": churn(); break;
   case "verify": verify(); break;
   case "down": await down(); break;
