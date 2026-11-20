@@ -1,8 +1,6 @@
 module github.com/zrepl/zrepl
 
-go 1.24.13
-
-toolchain go1.25.7
+go 1.26.0
 
 require (
 	github.com/bits-and-blooms/bitset v1.24.4
@@ -30,11 +28,11 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/yudai/gojsondiff v1.0.0
 	github.com/zrepl/yaml-config v0.0.0-20191220194647-cbb6b0cf4bdd
-	golang.org/x/net v0.49.0
-	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.41.0
-	golang.org/x/tools v0.41.0
-	google.golang.org/grpc v1.78.0
+	golang.org/x/net v0.60.0
+	golang.org/x/sync v0.23.0
+	golang.org/x/sys v0.48.0
+	golang.org/x/tools v0.49.0
+	google.golang.org/grpc v1.83.1
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -50,8 +48,8 @@ require (
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/mod v0.32.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260203192932-546029d2fa20 // indirect
+	golang.org/x/mod v0.41.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 )
@@ -79,9 +77,9 @@ require (
 	github.com/theckman/goconstraint v1.11.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect; go1.12 thinks it needs this
 	github.com/yudai/pp v2.0.1+incompatible // indirect
-	golang.org/x/crypto v0.47.0 // indirect
-	golang.org/x/term v0.39.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/term v0.46.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
