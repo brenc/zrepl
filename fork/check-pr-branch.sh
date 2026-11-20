@@ -14,7 +14,7 @@ git rev-parse --verify --quiet "$base" >/dev/null || {
 
 # Fork-only paths. Keep in sync with the list in FORK.md. Upstream owns
 # .claude/commands/, so changes there are allowed.
-forkonly='^(AGENTS\.md|CLAUDE\.md|FORK\.md|\.claude/|\.agents/|fork/|REVIEW\.md)'
+forkonly='^(AGENTS\.md|CLAUDE\.md|FORK\.md|\.claude/|\.agents/|fork/|REVIEW\.md|\.github/workflows/fork-)'
 upstreamowned='^\.claude/commands/'
 
 files=$(git diff --name-only "$base...HEAD")

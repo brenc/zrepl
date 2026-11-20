@@ -36,6 +36,7 @@ These live on `main` and must never appear in a PR branch:
 - `.claude/`, except `.claude/commands/`, which upstream owns
 - `FORK.md` (this file)
 - `fork/` (tooling such as `fork/check-pr-branch.sh`)
+- `.github/workflows/fork-*` (our CI and release builds)
 
 The security audit and roadmap are kept out of this public repo, in the
 private `brenc/zrepl-notes`, because they describe unfixed vulnerabilities.
@@ -75,6 +76,25 @@ cheap:
 
 Features ported from `dsh2dsh/zrepl` are reimplemented by hand: the two
 codebases share almost no code, so its commits don't apply.
+
+## Releasing
+
+Production installs our builds, never upstream's packages.
+
+1. On `main`, with the checks passing and the VM tests green
+   (`bun fork/soak.ts platform debian`, `... platform freebsd`,
+   `bun fork/soak.ts topo up && bun fork/soak.ts topo soak 60`).
+2. Tag `vX.Y.Z-brenc.N`, where `vX.Y.Z` is the upstream release `main` is
+   based on and `N` counts our releases on it, then push the tag:
+   `git tag -a v0.7.0-brenc.1 -m "..." && git push origin v0.7.0-brenc.1`.
+3. `.github/workflows/fork-release.yml` builds a GitHub release with a
+   Debian `.deb` (upstream's packaging: systemd unit, `/etc/zrepl`),
+   tarballs for linux amd64/arm64 and freebsd amd64, `SHA256SUMS`, and
+   signed build provenance (`gh attestation verify <file> -R brenc/zrepl`).
+
+The Debian package version becomes `0.7.0.brenc.1-1`, which sorts above
+upstream's `0.7.0-1` but below its next release, so remove upstream's apt
+repo from hosts that install ours.
 
 ## Sending a PR upstream
 
