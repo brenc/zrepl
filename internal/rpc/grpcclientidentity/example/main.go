@@ -32,7 +32,7 @@ func main() {
 	case "server":
 		server()
 	default:
-		log.Printf("unknown mode %q")
+		log.Printf("unknown mode %q", args.mode)
 		os.Exit(1)
 	}
 }

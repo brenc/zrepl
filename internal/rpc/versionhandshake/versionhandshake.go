@@ -162,12 +162,12 @@ func (m *HandshakeMessage) DecodeReader(r io.Reader, maxLen int) error {
 		return hsErr(fmt.Sprintf("could not parse handshake message: %s", err))
 	}
 	if protoVersion < 1 {
-		return hsErr(fmt.Sprintf("invalid protocol version %q", protoVersion))
+		return hsErr(fmt.Sprintf("invalid protocol version %d", protoVersion))
 	}
 	m.ProtocolVersion = protoVersion
 
 	if extensionCount < 0 {
-		return hsErr(fmt.Sprintf("invalid extension count %q", extensionCount))
+		return hsErr(fmt.Sprintf("invalid extension count %d", extensionCount))
 	}
 	if extensionCount == 0 {
 		if buf.Len() != 0 {

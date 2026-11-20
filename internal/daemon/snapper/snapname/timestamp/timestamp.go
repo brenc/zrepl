@@ -36,7 +36,7 @@ func New(formatString string, locationString string) (*Formatter, error) {
 				res = strings.Replace(res, "+", "_", 1)
 			}
 			if strings.Contains(res, "+") {
-				panic(fmt.Sprintf("format produced a string containing illegal character '+' that wasn't the expected case of positive time zone offset: format=%q location=%q unix=%q result=%q", formatString, location, t.Unix(), res))
+				panic(fmt.Sprintf("format produced a string containing illegal character '+' that wasn't the expected case of positive time zone offset: format=%q location=%q unix=%d result=%q", formatString, location, t.Unix(), res))
 			}
 			return res
 		}, nil
