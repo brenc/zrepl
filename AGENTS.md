@@ -6,8 +6,8 @@ zrepl: ZFS snapshot, replication and pruning daemon. It runs as root and
 destroys snapshots, so correctness bugs here lose backups.
 
 This repo (`brenc/zrepl`) is a downstream fork of the original `zrepl/zrepl`.
-Module path `github.com/zrepl/zrepl`; `go.mod` says Go 1.24 with toolchain
-1.25.7, and newer Go builds it fine. Pure Go, built with `CGO_ENABLED=0`.
+Module path `github.com/zrepl/zrepl`; our `go.mod` needs Go 1.26 or newer
+(upstream is on 1.24; we moved for the x/net security fix). Pure Go, built with `CGO_ENABLED=0`.
 Replication uses gRPC for control messages plus a custom data connection
 for send streams.
 
@@ -42,7 +42,7 @@ CircleCI.
 | Coverage | `make test-go COVER=1` → `artifacts/gotest.cover` |
 | Race detector | `CGO_ENABLED=1 go test -race ./...` |
 | Vet | `make vet` |
-| Lint | `GOTOOLCHAIN=go1.25.7 make lint` (pinned golangci-lint 2.8.0) |
+| Lint | `make lint` (pinned golangci-lint 2.15.0) |
 | Format | `make format` (goimports) |
 | Generate | `make generate` (protoc, enumer, stringer) |
 | Platform tests | see Testing |
@@ -57,10 +57,11 @@ CGO_ENABLED=0 go test -run TestFunctionName ./internal/endpoint/...
 `make lint`, `make format` and `make generate` first run `build/install`,
 which downloads pinned tools (golangci-lint, protoc, enumer, stringer,
 goimports) into `build/install/`. Needs `wget` and `unzip`, and the
-golangci-lint download is linux-only. The pinned golangci-lint can't read
-the standard library of Go newer than 1.25 (`export data version` typecheck
-error), hence `GOTOOLCHAIN=go1.25.7`, which matches upstream's release Go
-(`RELEASE_GOVERSION` in the `Makefile`).
+golangci-lint download is linux-only. If lint fails with an `export data
+version` typecheck error, the pinned golangci-lint is older than your Go:
+bump `VERSION` and the checksums in `build/get_golangci_lint.bash`, then
+`rm -rf build/install`. Delete `build/install` after any change to the
+pinned tool versions.
 
 The version is stamped from `git describe`. The `dsh2dsh` remote is set to
 `--no-tags` because dsh2dsh reuses version numbers like `v0.7.0` for
