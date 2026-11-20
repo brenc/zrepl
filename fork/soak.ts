@@ -506,7 +506,12 @@ function printVerdict(v: Verdict) {
   console.log(v.fail ? `RESULT: ${v.fail} failure(s)` : 'RESULT: ok');
 }
 
+/** Warm-up plus one churn round: the shortest soak that tests anything. */
+const MIN_SOAK_MINUTES = 8;
+
 async function soak(minutes: number) {
+  if (!Number.isFinite(minutes) || minutes < MIN_SOAK_MINUTES)
+    die(`soak needs a whole number of minutes, at least ${MIN_SOAK_MINUTES}`);
   const end = Date.now() + minutes * 60_000;
   let rounds = 0;
   let worst = 0;
@@ -528,6 +533,7 @@ async function soak(minutes: number) {
   }
   const final = verify();
   printVerdict(final);
+  if (rounds === 0) die('no churn round completed; nothing was soaked');
   if (worst || final.fail) process.exit(1);
 }
 

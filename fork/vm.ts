@@ -229,9 +229,14 @@ function pidAlive(name: string): number | null {
   const f = join(vmDir(name), 'qemu.pid');
   if (!existsSync(f)) return null;
   const pid = Number(readFileSync(f, 'utf8').trim());
+  // The pid file outlives a reboot (/var/tmp), so the pid may now belong to
+  // something else: only trust it if that process is this VM's qemu.
   try {
-    process.kill(pid, 0);
-    return pid;
+    const argv = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0');
+    const named = argv.indexOf('-name');
+    const isOurs =
+      argv[0]?.includes('qemu-system') === true && argv[named + 1] === name;
+    return named >= 0 && isOurs ? pid : null;
   } catch {
     return null;
   }
