@@ -147,13 +147,14 @@ shared parsing in `fork/lib/`) are a self-contained Bun project, kept inside
 
 ```sh
 bun install            # also installs the pre-commit hook
-bun run lint:write     # biome (format + lint), dprint (Markdown), tsc
-bun run test           # bun test: fork/lib/*.test.ts
+bun run lint:write     # biome (format + lint) and dprint (Markdown)
+bun run test           # lint, tsc, knip and bun test (fork/lib/*.test.ts)
 ```
 
-Run `bun run lint:write` and `bun run test` after changing anything in
-`fork/`. The pre-commit hook (`fork/.husky/pre-commit`) runs `bun run lint`
-on every commit in this repo.
+Scripts run in parallel with `bun run --parallel`. Run `bun run lint:write`
+and `bun run test` after changing anything in `fork/`. The pre-commit hook
+(`fork/.husky/pre-commit`) runs `bun run test` on every commit in this
+repo; it takes about a second.
 
 - Biome: single quotes, 2-space indent, sorted keys and imports; schema from
   `node_modules`. Strict TypeScript with `noUncheckedIndexedAccess`: handle
