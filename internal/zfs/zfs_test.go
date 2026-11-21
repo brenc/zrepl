@@ -400,7 +400,7 @@ func TestZFSSendArgsBuildSendFlags(t *testing.T) {
 			if test.exactMatch {
 				assert.Equal(t, flags, test.flagsInclude)
 			}
-			for flag := range flags {
+			for _, flag := range flags {
 				assert.NotContains(t, test.flagsExclude, flag)
 			}
 		})
@@ -449,7 +449,7 @@ func TestZFSCommonRecvArgsBuild(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			flags := test.conf.buildRecvFlags()
 			assert.Subset(t, flags, test.flagsInclude)
-			for flag := range flags {
+			for _, flag := range flags {
 				assert.NotContains(t, test.flagsExclude, flag)
 			}
 		})
