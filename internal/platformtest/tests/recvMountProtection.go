@@ -12,6 +12,7 @@ import (
 	"github.com/zrepl/zrepl/internal/daemon/filters"
 	"github.com/zrepl/zrepl/internal/endpoint"
 	"github.com/zrepl/zrepl/internal/platformtest"
+	"github.com/zrepl/zrepl/internal/replication/logic"
 	"github.com/zrepl/zrepl/internal/replication/logic/pdu"
 	"github.com/zrepl/zrepl/internal/zfs"
 )
@@ -148,4 +149,64 @@ func implReplicationMountProtection(ctx *platformtest.Context, setup mountProtec
 	entries, err := os.ReadDir(target)
 	require.NoError(ctx, err)
 	require.Empty(ctx, entries, "nothing may be mounted at the sender's mountpoint")
+}
+
+// A stream that ends before mount protection can read its header must
+// leave a placeholder receive target as it was, so that the next attempt
+// can still replace it with `zfs recv -F`.
+func ReplicationMountProtectionTruncatedHeaderKeepsPlaceholder(ctx *platformtest.Context) {
+	platformtest.Run(ctx, platformtest.PanicErr, ctx.RootDataset, `
+		CREATEROOT
+		+  "sender"
+		+  "sender/a"
+		+  "sender/a@1"
+		+  "receiver"
+		R  zfs create -p "${ROOTDS}/receiver/${ROOTDS}/sender"
+	`)
+
+	sfs := ctx.RootDataset + "/sender/a"
+	rfsRoot := ctx.RootDataset + "/receiver"
+	rfs := mustDatasetPath(path.Join(rfsRoot, sfs))
+	err := zfs.ZFSCreatePlaceholderFilesystem(ctx, rfs, mustDatasetPath(path.Dir(rfs.ToString())), zfs.FilesystemPlaceholderCreateEncryptionInherit)
+	require.NoError(ctx, err)
+
+	truncate := true
+	rep := replicationInvocation{
+		sjid:      endpoint.MustMakeJobID("sender-job"),
+		rjid:      endpoint.MustMakeJobID("receiver-job"),
+		sfs:       sfs,
+		rfsRoot:   rfsRoot,
+		guarantee: pdu.ReplicationConfigProtectionWithKind(pdu.ReplicationGuaranteeKind_GuaranteeNothing),
+		interceptSender: func(e *endpoint.Sender) logic.Sender {
+			if !truncate {
+				return e
+			}
+			return &PartialSender{Sender: e, failAfterByteCount: 100}
+		},
+	}
+
+	requirePlaceholder := func(want bool) {
+		st, err := zfs.ZFSGetFilesystemPlaceholderState(ctx, rfs)
+		require.NoError(ctx, err)
+		require.True(ctx, st.FSExists)
+		require.Equal(ctx, want, st.IsPlaceholder)
+	}
+	requirePlaceholder(true)
+
+	r := rep.Do(ctx)
+	ctx.Logf("\n%s", pretty.Sprint(r))
+	require.Len(ctx, r.Attempts, 1)
+	require.Len(ctx, r.Attempts[0].Filesystems, 1)
+	stepErr := r.Attempts[0].Filesystems[0].StepError
+	require.NotNil(ctx, stepErr)
+	require.Contains(ctx, stepErr.Err, "mount protection")
+	requirePlaceholder(true)
+
+	truncate = false
+	r = rep.Do(ctx)
+	ctx.Logf("\n%s", pretty.Sprint(r))
+	require.Len(ctx, r.Attempts, 1)
+	require.Len(ctx, r.Attempts[0].Filesystems, 1)
+	require.Nil(ctx, r.Attempts[0].Filesystems[0].Error())
+	requirePlaceholder(false)
 }

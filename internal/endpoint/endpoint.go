@@ -904,6 +904,24 @@ func (s *Receiver) Receive(ctx context.Context, req *pdu.ReceiveReq, receive io.
 	recvOpts.InheritProperties = s.conf.InheritProperties
 	recvOpts.OverrideProperties = s.conf.OverrideProperties
 
+	// apply rate limit
+	receive = s.bwLimit.WrapReadCloser(receive)
+
+	// Read the stream header before changing anything on disk below: a
+	// failure here returns without the placeholder restoration that a
+	// failed ZFSRecv gets.
+	if !s.conf.DisableMountProtection {
+		maxPayload := envconst.Int64("ZREPL_ENDPOINT_RECV_MAX_HEADER_PAYLOAD", 64<<20)
+		maxPayload = min(max(maxPayload, 0), math.MaxUint32)
+		streamType, header, err := zfs.ReadSendStreamDatasetType(receive, uint32(maxPayload))
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot determine dataset type of send stream for mount protection")
+		}
+		receive = chainedio.NewChainedReader(bytes.NewReader(header), receive)
+		log.WithField("stream_type", streamType.String()).Debug("applying mount protection")
+		recvOpts = mountProtection(recvOpts, streamType, runtime.GOOS)
+	}
+
 	if ph.FSExists && ph.IsPlaceholder {
 		recvOpts.RollbackAndForceRecv = true
 		clearPlaceholderProperty = true
@@ -926,21 +944,6 @@ func (s *Receiver) Receive(ctx context.Context, req *pdu.ReceiveReq, receive io.
 	recvOpts.SavePartialRecvState, err = zfs.ResumeRecvSupported(ctx, lp)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot determine whether we can use resumable send & recv")
-	}
-
-	// apply rate limit
-	receive = s.bwLimit.WrapReadCloser(receive)
-
-	if !s.conf.DisableMountProtection {
-		maxPayload := envconst.Int64("ZREPL_ENDPOINT_RECV_MAX_HEADER_PAYLOAD", 64<<20)
-		maxPayload = min(max(maxPayload, 0), math.MaxUint32)
-		streamType, header, err := zfs.ReadSendStreamDatasetType(receive, uint32(maxPayload))
-		if err != nil {
-			return nil, errors.Wrap(err, "cannot determine dataset type of send stream for mount protection")
-		}
-		receive = chainedio.NewChainedReader(bytes.NewReader(header), receive)
-		log.WithField("stream_type", streamType.String()).Debug("applying mount protection")
-		recvOpts = mountProtection(recvOpts, streamType, runtime.GOOS)
 	}
 
 	var peek bytes.Buffer
