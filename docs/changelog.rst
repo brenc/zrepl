@@ -13,6 +13,14 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+* |break| Receiving jobs (``sink``, ``pull``) no longer let the send stream decide whether and where received datasets are mounted.
+  zrepl now receives with ``zfs recv -u`` and overrides ``mountpoint=none``, ``canmount=off`` and ``volmode=none`` (plus ``org.openzfs.systemd:ignore=on`` on Linux) by default.
+  Received filesystems that are already mounted stay mounted until unmounted by hand or the pool is next imported.
+  Opt out with :ref:`recv.properties.mount_protection: false <job-recv-options--mount-protection>`.
+
 0.7.0
 -----
 

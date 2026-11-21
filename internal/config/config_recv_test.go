@@ -131,4 +131,30 @@ jobs:
 		assert.NotNil(t, c)
 	})
 
+	mountProtection := func(t *testing.T, c *Config) bool {
+		return c.Jobs[0].Ret.(*PullJob).Recv.Properties.MountProtection
+	}
+
+	t.Run("mount_protection_defaults_on", func(t *testing.T) {
+		for name, snippet := range map[string]string{
+			"not specified":    recv_not_specified,
+			"recv empty":       recv_empty,
+			"properties empty": recv_properties_empty,
+			"override only":    recv_override,
+		} {
+			t.Run(name, func(t *testing.T) {
+				assert.True(t, mountProtection(t, testValidConfig(t, fill(snippet))))
+			})
+		}
+	})
+
+	t.Run("mount_protection_opt_out", func(t *testing.T) {
+		c := testValidConfig(t, fill(`
+  recv:
+    properties:
+      mount_protection: false
+`))
+		assert.False(t, mountProtection(t, c))
+	})
+
 }

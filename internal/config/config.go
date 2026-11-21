@@ -140,6 +140,9 @@ type ReplicationOptionsConcurrency struct {
 type PropertyRecvOptions struct {
 	Inherit  []zfsprop.Property          `yaml:"inherit,optional"`
 	Override map[zfsprop.Property]string `yaml:"override,optional"`
+	// MountProtection keeps received datasets unmounted regardless of the
+	// properties in the send stream; see endpoint.ReceiverConfig.
+	MountProtection bool `yaml:"mount_protection,optional,default=true"`
 }
 
 type PlaceholderRecvOptions struct {

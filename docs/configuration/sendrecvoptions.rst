@@ -141,6 +141,7 @@ Recv Options
          override: {
            "org.openzfs.systemd:ignore": "on"
          }
+         mount_protection: true # default
        bandwidth_limit: ...
        placeholder:
          encryption: unspecified | off | inherit
@@ -165,6 +166,26 @@ Property names specified in this list will be inherited from the receiving side'
 With both options, the sending side's property value is still stored on the receiver, but the local override or inherit is the one that takes effect.
 You can send the original properties from the first receiver to another receiver using :ref:`send.backup_properties<job-send-options-backup-properties>`.
 
+.. _job-recv-options--mount-protection:
+
+``mount_protection`` (default: ``true``) keeps received datasets unmounted and hidden from the system, whatever properties the send stream carries.
+zrepl runs ``zfs recv -u`` and overrides these properties on every received dataset:
+
+* filesystems: ``mountpoint=none``, ``canmount=off``, ``volmode=none``, and on Linux ``org.openzfs.systemd:ignore=on`` (see :ref:`Systemd <job-note-property-replication>` below)
+* ZVOLs: ``volmode=none``, so the receiver creates no device nodes for them
+
+A property listed in ``override`` or ``inherit`` keeps your setting instead.
+For example, ``inherit: [mountpoint]`` together with ``override: {canmount: noauto}`` lets you mount a received filesystem by hand under ``root_fs``'s mountpoint.
+
+Set ``mount_protection: false`` to restore the behavior of zrepl 0.7 and earlier, where ``zfs recv`` applies the sender's properties and mounts what it receives.
+Only do this if you trust every sender of this job.
+
+.. NOTE::
+
+   After upgrading to a version with ``mount_protection``, the next receive into each existing dataset applies the overrides.
+   A received filesystem that is already mounted stays mounted until you unmount it or the pool is next imported.
+   Check with ``zfs get -r mounted <root_fs>`` and unmount them with ``zfs unmount``.
+
 
 .. _job-note-property-replication:
 
@@ -180,10 +201,10 @@ that storage server's root filesystem will be shadowed by the received file syst
 Also, many scripts and tools use ZFS user properties for configuration and do not check the property source (``local`` vs. ``received``).
 If they are installed on the receiving side as well as the sending side, property replication could have unintended effects.
 
-**zrepl currently does not provide any automatic safe-guards for property replication:**
+Apart from :ref:`mount_protection <job-recv-options--mount-protection>`, which covers mount and device properties, **zrepl does not provide automatic safe-guards for property replication:**
 
 * Make sure to read the entire man page on zfs recv (`man zfs recv <https://openzfs.github.io/openzfs-docs/man/8/zfs-recv.8.html>`_) before enabling this feature.
-* Use ``recv.properties.override`` whenever possible, e.g. for ``mountpoint=none`` or ``canmount=off``.
+* Use ``recv.properties.override`` whenever possible.
 * Use ``recv.properties.inherit`` if that makes more sense to you.
 
 Below is an **non-exhaustive list of problematic properties**.

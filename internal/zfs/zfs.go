@@ -1178,6 +1178,8 @@ type RecvOptions struct {
 	RollbackAndForceRecv bool
 	// Set -s flag used for resumable send & recv
 	SavePartialRecvState bool
+	// Set -u flag: don't mount the received filesystem.
+	NoMount bool
 
 	InheritProperties  []zfsprop.Property
 	OverrideProperties map[zfsprop.Property]string
@@ -1190,6 +1192,9 @@ func (opts RecvOptions) buildRecvFlags() []string {
 	}
 	if opts.SavePartialRecvState {
 		args = append(args, "-s")
+	}
+	if opts.NoMount {
+		args = append(args, "-u")
 	}
 	if opts.InheritProperties != nil {
 		for _, prop := range opts.InheritProperties {

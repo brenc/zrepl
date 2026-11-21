@@ -417,6 +417,11 @@ func TestZFSCommonRecvArgsBuild(t *testing.T) {
 		"Empty Args": {
 			conf:         RecvOptions{},
 			flagsInclude: []string{},
+			flagsExclude: []string{"-x", "-o", "-F", "-s", "-u"},
+		},
+		"NoMount": {
+			conf:         RecvOptions{NoMount: true},
+			flagsInclude: []string{"-u"},
 			flagsExclude: []string{"-x", "-o", "-F", "-s"},
 		},
 		"ForceRollback": {

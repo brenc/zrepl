@@ -90,6 +90,8 @@ func buildReceiverConfig(in ReceivingJobConfig, jobID endpoint.JobID) (rc endpoi
 		InheritProperties:  recvOpts.Properties.Inherit,
 		OverrideProperties: recvOpts.Properties.Override,
 
+		DisableMountProtection: !recvOpts.Properties.MountProtection,
+
 		BandwidthLimit: bwlim,
 
 		PlaceholderEncryption: placeholderEncryption,

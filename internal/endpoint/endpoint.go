@@ -6,7 +6,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"path"
+	"runtime"
 	"strings"
 
 	"github.com/kr/pretty"
@@ -491,6 +493,11 @@ type ReceiverConfig struct {
 	InheritProperties  []zfsprop.Property
 	OverrideProperties map[zfsprop.Property]string
 
+	// DisableMountProtection lets the send stream's mount-related
+	// properties take effect, and lets `zfs recv` mount what it receives.
+	// See mountProtection for what it turns off. The zero value protects.
+	DisableMountProtection bool
+
 	BandwidthLimit bandwidthlimit.Config
 
 	PlaceholderEncryption PlaceholderCreationEncryptionProperty
@@ -923,6 +930,18 @@ func (s *Receiver) Receive(ctx context.Context, req *pdu.ReceiveReq, receive io.
 
 	// apply rate limit
 	receive = s.bwLimit.WrapReadCloser(receive)
+
+	if !s.conf.DisableMountProtection {
+		maxPayload := envconst.Int64("ZREPL_ENDPOINT_RECV_MAX_HEADER_PAYLOAD", 64<<20)
+		maxPayload = min(max(maxPayload, 0), math.MaxUint32)
+		streamType, header, err := zfs.ReadSendStreamDatasetType(receive, uint32(maxPayload))
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot determine dataset type of send stream for mount protection")
+		}
+		receive = chainedio.NewChainedReader(bytes.NewReader(header), receive)
+		log.WithField("stream_type", streamType.String()).Debug("applying mount protection")
+		recvOpts = mountProtection(recvOpts, streamType, runtime.GOOS)
+	}
 
 	var peek bytes.Buffer
 	var MaxPeek = envconst.Int64("ZREPL_ENDPOINT_RECV_PEEK_SIZE", 1<<20)
