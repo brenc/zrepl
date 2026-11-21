@@ -26,9 +26,13 @@ jobs:
           go-version: stable
           check-latest: true
 
+      # setup-uv's version-file only understands pyproject.toml and the like,
+      # not upstream's bare .uv-version.
+      - run: echo "UV_VERSION=$(cat .uv-version)" >> "$GITHUB_ENV"
+
       - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
         with:
-          version-file: .uv-version
+          version: ${{ env.UV_VERSION }}
 
       - name: Check tag
         run: |
